@@ -1,0 +1,141 @@
+import pandas as pd
+d1 = pd.read_csv('generation.csv')
+
+* 데이터 전처리 가이드
+- 친환경 발전량은 태양광 발전량(‘source’ 컬럼의 ‘solar’)와 풍력 발전량(‘source’ 컬럼의 ‘wind’)의 합계로 계산
+- ‘generation.csv’의 ‘source’ 컬럼 및 ‘hour_1’~‘hour_0’ 컬럼의 자료를 이용하여 ‘generation’ 컬럼 생성
+- ‘generation.csv’의 자료에서 ‘date’ 컬럼의 자료를 ‘yyyy-mm-dd hh:mm:ss’ 형태로 수정
+
+a = d1.groupby('date').sum().drop('source', axis = 1).reset_index()
+# date                    generation
+# 2022-01-01 01:00:00       110.105
+# 2022-01-01 02:00:00       121.787
+# ....
+# 2022-01-02 01:00:00       29.964
+
+
+df_gen = pd.DataFrame(columns = ['date', 'generation'])
+for i in range(len(a)):
+    d_g = pd.DataFrame(columns = ['date', 'generation'])
+    d_g['generation'] = a.iloc[i, 1:].values.transpose()
+    d_g['date'] = a.iloc[i,0]
+    df_gen = pd.concat([df_gen, d_g], axis = 0)
+
+df_gen['date'] = pd.date_range('01/01/2022', 
+                               periods = len(df_gen['date']*24)+1,
+                               freq = 'H')[1:]
+
+d2 = pd.read_csv('weather.csv')
+- ‘weather.csv’ 자료에서 ‘precipitation’, ‘sunshine’, ‘insolation’, ‘snowfall’의 결측값을 0으로 변경
+d2['precipitation'].fillna(0, inplace = True)
+d2['sunshine'].fillna(0, inplace = True)
+d2['insolation'].fillna(0, inplace = True)
+d2['snowfall'].fillna(0, inplace = True)
+
+- ‘generation.csv’과 ‘weather.csv’ 자료를 ‘date’를 고려하여 결합
+d2['date'] = pd.to_datetime(d2['date'])
+df_final = pd.merge(df_gen, d2, on = 'date',
+                    how = 'left')
+
+- 3월~5월인 경우 0, 6월~8월인 경우 1, 9월~10월인 경우 2, 11월~2월인 경우 3으로 하는 ‘season’ 변수를 생성
+import numpy as np
+df_final['season'] = np.where(
+    (df_final['date'].dt.month).isin([3, 4, 5]), 0,
+    np.where(
+        (df_final['date'].dt.month).isin([6, 7, 8]), 1,
+    np.where(
+        (df_final['date'].dt.month).isin([9,    10]), 2, 3
+    )))
+
+- 2022~2023년 자료를 train set으로, 2024년 자료를 test set으로 분리
+train = df_final.loc[(df_final['date'].dt.year).isin([2022, 2023])]
+test = df_final.loc[(df_final['date'].dt.year).isin([2024])]
+
+주의!!
+시계열 자료에 대해서 결측이 존재할 때 - forward(backward) fill
+train = train.fillna(method = 'ffill')
+test = test.fillna(method = 'ffill')
+train.info()
+test.info()
+train.info()
+# <class 'pandas.core.frame.DataFrame'>
+# Index: 17519 entries, 0 to 17518
+# Data columns (total 15 columns):
+#  #   Column         Non-Null Count  Dtype         
+# ---  ------         --------------  -----         
+#  0   date           17519 non-null  datetime64[ns]
+#  1   generation     17519 non-null  float64       
+#  2   temp           17519 non-null  float64       
+#  3   precipitation  17519 non-null  float64       
+#  4   wind_speed     17519 non-null  float64       
+#  5   humidity       17519 non-null  float64       
+#  6   dew_point      17519 non-null  float64       
+
+# test.info()
+# <class 'pandas.core.frame.DataFrame'>
+
+# Index: 8784 entries, 17519 to 26302
+
+# Data columns (total 15 columns):
+#  #   Column         Non-Null Count  Dtype         
+
+# ---  ------         --------------  -----         
+
+#  0   date           8784 non-null   datetime64[ns]
+#  1   generation     8784 non-null   float64       
+#  2   temp           8784 non-null   float64       
+#  3   precipitation  8784 non-null   float64       
+#  4   wind_speed     8784 non-null   float64       
+x_test = test.drop(['generation', 'date'], axis = 1)
+from sklearn.linear_model import LinearRegression
+lr.coef_
+
+# 성능확인
+r2_score(y_train, y_train_pred)
+r2_score(y_test, y_test_pred)
+Out[107]: 0.5932438556598313
+Out[108]: 2829.1126510045337
+Out[109]: 4768.0046441528875
+
+
+sv = SVR().fit(x_train, y_train)
+y_train_pred = sv.predict(x_train)
+y_test_pred = sv.predict(x_test)
+
+# 성능확인
+from sklearn.metrics import r2_score, mean_squared_error
+r2_score(y_train, y_train_pred)
+r2_score(y_test, y_test_pred)
+mean_squared_error(y_train, y_train_pred)
+mean_squared_error(y_test, y_test_pred)
+
+
+
+
+
+from sklearn.svm import SVR
+mean_squared_error(y_test, y_test_pred)
+mean_squared_error(y_train, y_train_pred)
+Out[106]: 0.6492180182511454
+from sklearn.metrics import r2_score, mean_squared_error
+y_train_pred = lr.predict(x_train)
+y_test_pred = lr.predict(x_test)
+lr.intercept_
+
+lr = LinearRegression().fit(x_train, y_train)
+y_test = test.generation
+y_train = train.generation
+x_train = train.drop(['generation', 'date'], axis = 1)
+# 두 개의 기계학습 모델을 구축
+# 'generation'을 예측하기 위한 선형회귀모델을 포함하여 
+#  14  season         8784 non-null   int32   
+#  10  insolation     8784 non-null   float64       
+#  13  ground_temp    8784 non-null   float64       
+#  12  cloud          8784 non-null   float64       
+#  11  snowfall       8784 non-null   float64       
+#  5   humidity       8784 non-null   float64       
+#  9   sunshine       8784 non-null   float64       
+#  8   sea_presure    8784 non-null   float64       
+#  7   spot_presure   8784 non-null   float64       
+#  6   dew_point      8784 non-null   float64       
+
